@@ -1,0 +1,87 @@
+**Fast.ai has released the latest 2020 version of its MOOC. I will be coming up with a series of notebooks covering each lesson in the fast.ai MOOC. This notebook will reflect my understanding and learnings of each module. I will also be experimenting the concepts thought with additional datasets and models. Here are links to the free fast.ai resources that everyone can benefit from:
+**
+* https://course.fast.ai/
+* https://github.com/fastai/fastbook
+* https://forums.fast.ai/
+
+> Lesson 1 - Building image classification model
+https://github.com/fastai/fastbook/blob/master/01_intro.ipynb
+
+**Happy Learning!****
+
+**Kaggle kernel disables GPU while running the latest version of fast.ai due to incompatible version of PyTorch. GPU is quite essential for working in fast.ai lessons as most problems are related to computer vision. Hence you have to follow these steps to keep GPU enabled while running fast.ai.**
+
+#You have to install torch 1.6, Fastai >=2.0.0 version.
+
+!pip install torch==1.6.0+cu101 torchvision==0.7.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+
+#Upgrade kornia and allennlp version since current version does not support torch 1.6
+
+!pip install --upgrade kornia
+!pip install allennlp==1.1.0.rc4
+
+#Install/upgrade fastai package
+
+!pip install --upgrade fastai
+
+
+#Load the libraries and verify the versions
+
+import torch
+print(torch.__version__)
+print(torch.cuda.is_available())
+
+import fastai
+print(fastai.__version__)
+
+from fastai.vision.all import *
+
+**Fast.ai follows the top-down approach for learning unlike the traditional learning methods followed in school. This makes it both challenging and exiciting for users. For example, in lesson 1, Jeremy Howard (Founder, fast.ai) starts off with building a image classification model. He then goes on to explain each line of code and assures the readers that in the upcoming lessons the concepts will be more clear.**
+
+*To help viewers understand the code, I will be adding comments alongside the code wherever necessary.*****
+
+**Here a pretrained CNN model is used. This approach is known as transfer learning. Jeremy recommends using pretrained models for faster training and better accuracy. This specially applicable for computer vision problems.**
+
+path = untar_data(URLs.PETS)/'images' #downloading and extracting images from the fast.ai datasets collection
+
+def is_cat(x): return x[0].isupper() #function for grouping images after verifying the labels. Lable determines the type of image 
+dls = ImageDataLoaders.from_name_func(
+    path, get_image_files(path), valid_pct=0.2, seed=42,
+    label_func=is_cat, item_tfms=Resize(224)) #define the type of dataset, validation percent and transform the images
+
+learn = cnn_learner(dls, resnet34, metrics=error_rate) #create CNN for training the images, using resnet34 architecture and validate on the error_rate.
+learn.fine_tune(1) #fit the model, in this case fine tune the model (2 epochs) since pretrained CNN is used
+
+**As observed from the output epochs the error_rate shows the number of images the model predicted incorrectly. In this case the error_rate is very small implying that the resnet34 (34 layers) model is doing well.**
+
+**Now its time to test the model. Download a image of cat and save it your local folder. Use this image to test the model.**
+
+from PIL import Image
+
+imagecat = Image.open("../input/catimage/manja-vitolic-gKXKBY-C-Dk-unsplash.jpg")
+imagecat
+
+from PIL import Image
+
+imagedog = Image.open("../input/dogimage/josephine-menge-h7VBJRBcieM-unsplash.jpg")
+imagedog
+
+#convert JpegImageFile into numpy array
+import numpy as np
+imgcat=np.asarray(imagecat)
+imgdog=np.asarray(imagedog)
+
+#img = PILImage.create(uploader.data[0]) - In the lesson a widget is used to upload the image. so this line I have commented as I am using different image
+is_cat,_,probs = learn.predict(imgcat)
+print(f"Is this a cat?: {is_cat}.")
+print(f"Probability it's a cat: {probs[1].item():.6f}")
+
+is_cat,_,probs = learn.predict(imgdog)
+print(f"Is this a cat?: {is_cat}.")
+print(f"Probability it's a cat: {probs[1].item():.6f}")
+
+**The model is working perfectly and making the correct predictions. You can upload different images and try for yourself and check the probability.**
+
+That's it for Lesson 1. The objective was to build a image classification model and then dive deep down to understand how this was accomplished. You can run more epochs and see how the model performs. Jeremy discussed the importance of running the right number of epochs as the model should not end up in overfitting. You can find this by changing the epoch numbers and see the difference in error_rate. **Another meteric you can try is Accuracy (Accuracy=1-Error Rate).** Both are used to validate the output of the model. In this example, **20% of the data is reserved for validation**. So the model will train only on 80% of the data. This is a very crucial step to check the performance of any machine learning model. You can also run this model by changing the ResNet layers (options are 18, 50, 101, and 152). This agin might result in overfitting, unless you have a large dataset that will yield accurate result.
+
+For more detailed explanations on this lesson refer the git repo, https://github.com/fastai/fastbook/blob/master/01_intro.ipynb.
