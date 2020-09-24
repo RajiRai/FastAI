@@ -1,2 +1,2 @@
 # Fast.ai
-This repo will have all the lessons taught in the FastAI Beginner course.
+This repo will have all the lessons taught in the fast.ai beginner course.
