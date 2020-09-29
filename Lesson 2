@@ -1,0 +1,259 @@
+*Fast.ai has released the latest 2020 version of its MOOC. I will be coming up with a series of notebooks covering each lesson in the fast.ai MOOC. This notebook will reflect my understanding and learnings of each module. I will also be experimenting the concepts thought with additional datasets and models. Here are links to the free fast.ai resources that everyone can benefit from: *
+
+https://course.fast.ai/
+https://github.com/fastai/fastbook
+https://forums.fast.ai/
+Lesson 2 - Building image classification model for production https://github.com/fastai/fastbook/blob/master/02_production.ipynb
+
+Here is link for the Lesson 1 kernel, https://www.kaggle.com/krrai77/fastai-2020-lesson-1
+
+Happy Learning!**
+
+
+
+
+#You have to install torch 1.6, Fastai >=2.0.0 version.
+​
+!pip install torch==1.6.0+cu101 torchvision==0.7.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+​
+#Upgrade kornia and allennlp version since current version does not support torch 1.6
+​
+!pip install --upgrade kornia
+!pip install allennlp==1.1.0.rc4
+​
+#Install/upgrade fastai package
+​
+!pip install --upgrade fastai
+​
+
+
+Kaggle kernel disables GPU while running the latest version of fast.ai due to incompatible version of PyTorch. GPU is quite essential for working in fast.ai lessons as most problems are related to computer vision. Hence you have to follow these steps to keep GPU enabled while running fast.ai.
+
+
+#Load the libraries and verify the versions
+​
+import torch
+print(torch.__version__)
+print(torch.cuda.is_available())
+​
+import fastai
+print(fastai.__version__)
+​
+from fastai.vision.all import *
+
+
+
+Fast.ai follows the top-down approach for learning unlike the traditional learning methods followed in school. This makes it both challenging and exiciting for users. For example, in lesson 1, Jeremy Howard (Founder, fast.ai) starts off with building a image classification model. He then goes on to explain each line of code and assures the readers that in the upcoming lessons the concepts will be more clear.
+
+To help viewers understand the code, I will be adding comments alongside the code wherever necessary.****
+
+
+
+In this lesson, Bing image search API is used to search for required images, and then classify them based on the given criteria. For using bing image search api, you have to first have a Microsoft account. Then you can opt for the required API at https://azure.microsoft.com/en-us/try/cognitive-services/. You can go for the 7 day free trial option, or go for the free Azure account(credit/debit card details needs to be provided).
+
+
+
+key = os.environ.get('AZURE_SEARCH_KEY', 'e7a1d32f56364353b6e9e376b5ba20cd') # save the api key in a variable
+
+
+The search_images_bing function that used for image search in this lesson is provided by the small utils class. This file is included with the fastbook git repo. However, for using that in the Kaggle notebook follow these steps:
+
+Copy the util.py from the https://github.com/fastai/fastbook/blob/master/utils.py.
+Mark it as util.
+Add it as util in the notebook where the lesson 2 is running.
+Import the utils file.
+Only after this the search_images_bing will work. I have followed the above steps and imported the utils files in this notebook.
+
+
+
+
+search_images_bing
+
+
+results = search_images_bing(key, 'grizzly bear') #search for grizzly bear using the key in bing image search
+ims = results.attrgot('content_url') #download the urls of all the images matching the given criteria
+len(ims)
+
+
+ims
+
+
+bear_types = 'grizzly','black','teddy' #define the labels/categories for the images to be classified
+path = Path('bears')
+
+
+#all the matching image urls that fall into the defined lables/categories are grouped into seperate folders
+if not path.exists():
+    path.mkdir()
+    for o in bear_types:
+        dest = (path/o)
+        dest.mkdir(exist_ok=True)
+        results = search_images_bing(key, f'{o} bear')
+        download_images(dest, urls=results.attrgot('content_url'))
+
+
+fns = get_image_files(path) #view the grouped images
+fns
+
+
+failed = verify_images(fns) #verify images that failed to open
+failed
+
+
+failed.map(Path.unlink) #fast.ai provides a simple method to delete the path of all the failed files
+
+
+Useful Jupyter Notebook features shared by Jeremy:
+
+At any point, if you don't remember the exact spelling of a function or argument name, you can press Tab to get autocompletion suggestions. When inside the parentheses of a function, pressing Shift and Tab simultaneously will display a window with the signature of the function and a short description. Pressing these keys twice will expand the documentation, and pressing them three times will open a full window with the same information at the bottom of your screen.
+In a cell, typing ?func_name and executing will open a window with the signature of the function and a short description.
+In a cell, typing ??func_name and executing will open a window with the signature of the function, a short description, and the source code.
+If you are using the fastai library, we added a doc function for you: executing doc(func_name) in a cell will open a window with the signature of the function, a short description and links to the source code on GitHub and the full documentation of the function in the library docs.
+To get help at any point if you get an error, type %debug in the next cell and execute to open the Python debugger, which will let you inspect the content of every variable.
+Ref: https://github.com/fastai/fastbook/blob/master/02_production.ipynb
+
+
+
+#preparation for loading the data using dataloaders function. 2 blocks for independent and dependent variables are created.
+#here independent are the images, dependent are lables defined.
+#all images are resized to a common square size.
+bears = DataBlock(
+    blocks=(ImageBlock, CategoryBlock), 
+    get_items=get_image_files, 
+    splitter=RandomSplitter(valid_pct=0.2, seed=42),
+    get_y=parent_label,
+    item_tfms=Resize(128))
+
+
+#bears template is used with the dataloaders function. imgage path has to be given as input.
+dls = bears.dataloaders(path)
+
+
+#see a sample of the validation images. 
+dls.valid.show_batch(max_n=6, nrows=1)
+
+
+#try image transformation techniques like squishing and padding and view the output
+bears = bears.new(item_tfms=Resize(128, ResizeMethod.Squish))
+dls = bears.dataloaders(path)
+dls.valid.show_batch(max_n=4, nrows=1)
+
+
+bears = bears.new(item_tfms=Resize(128, ResizeMethod.Pad, pad_mode='zeros'))
+dls = bears.dataloaders(path)
+dls.valid.show_batch(max_n=4, nrows=1)
+
+
+
+
+Data augumentation is a key step in the process of training a model for images. To avoid overfitting image transformation is a must. There are different way in image can be transformed like shown in the above examples. However, squishing and padding robs the original information from the images and adds additional pixels respectively. Hence randomly resizing the images yields good result. In this method as shown in the below example, random areas of each image is sampled during every epoch. This enables the model to learn more details of each image yielding better accuracy.
+
+Another important point to remember is, always tranform only the training images and do not modify the validation images. This is handled by default in fast.ai.
+
+
+
+bears = bears.new(item_tfms=RandomResizedCrop(128, min_scale=0.3)) #30% of the image area is zoomed by specifying 0.3.
+dls = bears.dataloaders(path)
+dls.train.show_batch(max_n=4, nrows=1,unique=True)
+
+
+Data Augmentation Data augmentation refers to creating random variations of our input data, such that they appear different, but do not actually change the meaning of the data. Examples of common data augmentation techniques for images are rotation, flipping, perspective warping, brightness changes and contrast changes. For natural photo images such as the ones we are using here, a standard set of augmentations that we have found work pretty well are provided with the aug_transforms function. Because our images are now all the same size, we can apply these augmentations to an entire batch of them using the GPU, which will save a lot of time. To tell fastai we want to use these transforms on a batch, we use the batch_tfms parameter (note that we're not using RandomResizedCrop in this example, so you can see the differences more clearly; we're also using double the amount of augmentation compared to the default, for the same reason) Source: https://github.com/fastai/fastbook/blob/master/02_production.ipynb
+
+
+
+#prepare the data for training
+bears = bears.new(
+    item_tfms=RandomResizedCrop(224, min_scale=0.5),
+    batch_tfms=aug_transforms())
+dls = bears.dataloaders(path)
+
+
+#train the model using resnet18 architecture that is pretrained.
+learn = cnn_learner(dls, resnet18, metrics=error_rate)
+learn.fine_tune(4)
+
+
+#validate the model performance using confusion matrix. Diagonals (dark blue) indicate correct predictions for each class.
+#other cells indicate the number of wrong predictions.
+interp = ClassificationInterpretation.from_learner(learn)
+interp.plot_confusion_matrix()
+
+
+#use this awesome fast.ai function to see the wrong predictions based on the highest loss rate
+#first lable indicates predicted, second indicates target label, next is the loss rate and fourth value is the probability
+#high probability indicates high confidence level by the model. It ranges between 0 and 1.
+#high loss rate indicates how bad the model performace is.
+interp.plot_top_losses(5, nrows=3)
+
+
+Model predictions can vary due to various reasons. In the above example, it seems the label (teddy) in the given dataset was wrong, but the model predicted correctly (black). However, since the image has a mix of black and white colors, the confidence of prediction is only 0.51. The loss rate is low, which indicates that the model performance is good.
+
+fast.ai provides a very handy function to clean the faulty images, such as deleting images or renaming their lables. This greatly helps in data preprocessing and greatly improves model accuracy. Jeremy suggests running this function after doing a basic training on the images, as this gives an idea of the kind of anamolies in the dataset.
+
+This GUI for data cleaning, ImageClassifierCleaner allows you to choose a category and the training versus validation set and view the highest-loss images (in order), along with menus to allow images to be selected for removal or relabeling.
+
+
+
+#clean the fautly images and lables.
+from fastai.vision.widgets import *
+cleaner = ImageClassifierCleaner(learn)
+cleaner
+
+
+#delete unwanted images by removing the links.
+for idx in cleaner.delete(): cleaner.fns[idx].unlink()
+
+
+#update the modified lables in the path folder.
+for idx,cat in cleaner.change(): 
+    real_dst = os.path.join(path/cat, cleaner.fns[idx].name)
+    if os.path.exists(real_dst):
+        old_file_path = cleaner.fns[idx]
+        old_cat = old_file_path.parent.stem
+        new_file_path = f'{path/cat/old_cat}_{str(old_file_path.name.replace(" ","").lower())}'
+        shutil.move(str(cleaner.fns[idx]), new_file_path)
+    else:
+        shutil.move(str(cleaner.fns[idx]), path/cat)
+
+
+Once you have trained the model and satisfied with the outcome its time to deploy the model. For deploying the model into production you need to save your model architecture and the parameters its trained on. For this the export method is used.
+
+
+
+#export your entire model along with the dataloader info.
+learn.export()
+
+
+#fast.ai saves the exported model as .pkl file that can be used for production.
+path = Path()
+path.ls(file_exts='.pkl')
+
+
+#create inference learner from the exported file.
+learn_inf = load_learner(path/'export.pkl')
+
+
+#sample images used for prediction
+from PIL import Image
+​
+imagebear = Image.open("../input/bearimage/becca-_r6w0R6SueQ-unsplash.jpg")
+imagegriz = Image.open("../input/blackbear/zdenek-machacek-_QG2C0q6J-s-unsplash.jpg")
+imageblack = Image.open("../input/blackclose/marc-olivier-jodoin-sI2Dz2dacGI-unsplash.jpg")
+
+
+#while doing inference, we're getting predictions for one image at a time
+learn_inf.predict("../input/blackclose/marc-olivier-jodoin-sI2Dz2dacGI-unsplash.jpg")
+
+
+This has returned three things: the predicted category in the same format you originally provided (in this case that's a string), the index of the predicted category, and the probabilities of each category. The last two are based on the order of categories in the vocab of the DataLoaders; that is, the stored list of all possible categories. At inference time, you can access the DataLoaders as an attribute of the Learner. Source:** https://github.com/fastai/fastbook/blob/master/02_production.ipynb
+
+
+
+learn_inf.dls.vocab
+
+
+The model is working perfectly and making satifactory predictions. You can upload different images and try for yourself and check the accuracy.
+
+That's it for Lesson 2. The objective was to explore more on the aspects of model building that was learnt in Lesson 1, https://www.kaggle.com/krrai77/fastai-2020-lesson-1. Here you learnt about using bing image search api for building your image classification model. Once the model was trained, its output was used for data cleaning. The preprocessed data reused to improve the model accuracy. Finally, the model was deployed and used for making predictions successfully. The next lesson will be about building a simple image classification based web application using this model.
+
+For more detailed explanations on this lesson refer the git repo, https://github.com/fastai/fastbook/blob/master/01_intro.ipynb.
